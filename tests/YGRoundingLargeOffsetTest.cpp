@@ -17,30 +17,38 @@ static YGSize _measureTwoLines(
   return YGSize{292.0f, 44.0f};
 }
 
-// A measured (text) node far from the origin on a 3x screen, with its top
-// below 2048 and its bottom above. Each edge is rounded to the pixel grid and
-// the height is their difference; in float the two edges have different
-// precision and the height came out 43.9998779 instead of 44, one step short
-// of the two lines the node was measured at.
-TEST(YogaTest, rounding_measured_height_far_from_origin_is_exact) {
-  YGConfigRef config = YGConfigNew();
-  YGConfigSetPointScaleFactor(config, 3.0f);
+// A measured (text) node far from the origin on a 3x screen, with its top on
+// one side of a power of two and its bottom on the other. Each edge is rounded
+// to the pixel grid and the height is their difference; in float the two
+// edges have different precision and the height came out one step short (for
+// example 43.9998779 instead of 44 for a node spanning 2048), so a text
+// renderer given that box dropped the last line.
+TEST(YogaTest, rounding_measured_height_is_exact_across_float_steps) {
+  for (const float spacer :
+       {1012.0f + 1.0f / 3.0f,
+        1012.0f + 2.0f / 3.0f,
+        2004.0f + 1.0f / 3.0f,
+        2028.0f + 2.0f / 3.0f,
+        4052.0f + 2.0f / 3.0f}) {
+    YGConfigRef config = YGConfigNew();
+    YGConfigSetPointScaleFactor(config, 3.0f);
 
-  YGNodeRef root = YGNodeNewWithConfig(config);
-  YGNodeStyleSetWidth(root, 300);
+    YGNodeRef root = YGNodeNewWithConfig(config);
+    YGNodeStyleSetWidth(root, 300);
 
-  YGNodeRef spacer = YGNodeNewWithConfig(config);
-  YGNodeStyleSetHeight(spacer, 2004.0f + 1.0f / 3.0f);
-  YGNodeInsertChild(root, spacer, 0);
+    YGNodeRef spacerNode = YGNodeNewWithConfig(config);
+    YGNodeStyleSetHeight(spacerNode, spacer);
+    YGNodeInsertChild(root, spacerNode, 0);
 
-  YGNodeRef text = YGNodeNewWithConfig(config);
-  YGNodeSetMeasureFunc(text, _measureTwoLines);
-  YGNodeInsertChild(root, text, 1);
+    YGNodeRef text = YGNodeNewWithConfig(config);
+    YGNodeSetMeasureFunc(text, _measureTwoLines);
+    YGNodeInsertChild(root, text, 1);
 
-  YGNodeCalculateLayout(root, YGUndefined, YGUndefined, YGDirectionLTR);
+    YGNodeCalculateLayout(root, YGUndefined, YGUndefined, YGDirectionLTR);
 
-  ASSERT_EQ(44.0f, YGNodeLayoutGetHeight(text));
+    ASSERT_EQ(44.0f, YGNodeLayoutGetHeight(text)) << "spacer " << spacer;
 
-  YGNodeFreeRecursive(root);
-  YGConfigFree(config);
+    YGNodeFreeRecursive(root);
+    YGConfigFree(config);
+  }
 }
